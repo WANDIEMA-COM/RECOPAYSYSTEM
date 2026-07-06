@@ -1,0 +1,988 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nimrod PT - Practice Management & Billing Dashboard</title>
+    <!-- Tailwind CSS for modern layout & styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for clean iconography -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <!-- Google Fonts: Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Vue 3 JS Framework -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Custom scrollbars for clean dashboard look */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased h-screen overflow-hidden">
+
+    <div id="app" class="flex h-screen w-screen overflow-hidden" v-cloak>
+
+        <!-- Notification Toast System (No alert() used) -->
+        <div class="fixed top-5 right-5 z-50 flex flex-col gap-2 pointer-events-none">
+            <transition-group name="toast">
+                <div v-for="toast in toasts" :key="toast.id" 
+                     :class="toast.type === 'success' ? 'bg-emerald-600' : 'bg-rose-600'" 
+                     class="text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 transition-all duration-300 transform translate-y-0 opacity-100 pointer-events-auto">
+                    <i :class="toast.type === 'success' ? 'fa-solid fa-circle-check' : 'fa-solid fa-circle-exclamation'"></i>
+                    <span class="text-sm font-semibold">{{ toast.message }}</span>
+                    <button @click="dismissToast(toast.id)" class="ml-auto text-white/80 hover:text-white">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+            </transition-group>
+        </div>
+
+        <!-- Sidebar Navigation -->
+        <aside class="w-64 bg-slate-900 text-white flex flex-col justify-between flex-shrink-0 border-r border-slate-800 shadow-2xl">
+            <div>
+                <!-- Brand & Logo -->
+                <div class="p-6 border-b border-slate-800">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-500 to-violet-600 flex items-center justify-center text-white shadow-lg shadow-indigo-500/30">
+                            <i class="fa-solid fa-house-medical text-lg"></i>
+                        </div>
+                        <div>
+                            <h2 class="text-lg font-bold tracking-tight text-white">NIMROD PT</h2>
+                            <span class="text-xs font-semibold text-emerald-400 tracking-wider uppercase">Clinic HQ</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Navigation Links -->
+                <nav class="p-4 space-y-1.5">
+                    <button @click="currentTab = 'dashboard'" :class="currentTab === 'dashboard' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'" class="w-full flex items-center gap-3.5 px-4 py-3 rounded-xl text-left transition duration-200 group">
+                        <i class="fa-solid fa-chart-line text-lg group-hover:scale-110 transition-transform"></i>
+                        <span class="font-medium text-sm">Overview Dashboard</span>
+                    </button>
+
+                    <button @click="currentTab = 'clients'" :class="currentTab === 'clients' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'" class="w-full flex items-center gap-3.5 px-4 py-3 rounded-xl text-left transition duration-200 group">
+                        <i class="fa-solid fa-file-invoice-dollar text-lg group-hover:scale-110 transition-transform"></i>
+                        <span class="font-medium text-sm">Billing & Clients</span>
+                    </button>
+
+                    <button @click="currentTab = 'team'" :class="currentTab === 'team' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'" class="w-full flex items-center gap-3.5 px-4 py-3 rounded-xl text-left transition duration-200 group">
+                        <i class="fa-solid fa-user-doctor text-lg group-hover:scale-110 transition-transform"></i>
+                        <span class="font-medium text-sm">Team Members</span>
+                    </button>
+
+                    <button @click="currentTab = 'reminders'" :class="currentTab === 'reminders' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'" class="w-full flex items-center gap-3.5 px-4 py-3 rounded-xl text-left transition duration-200 group">
+                        <i class="fa-solid fa-paper-plane text-lg group-hover:scale-110 transition-transform"></i>
+                        <span class="font-medium text-sm">Reminders Desk</span>
+                    </button>
+                </nav>
+            </div>
+
+            <!-- User Profile & Quick Action info -->
+            <div class="p-4 border-t border-slate-800 bg-slate-950/40">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center font-bold text-indigo-400 shadow-inner">
+                        NK
+                    </div>
+                    <div class="overflow-hidden">
+                        <p class="text-sm font-bold text-slate-200 truncate">Nimrod Kiprotich</p>
+                        <p class="text-xs text-slate-500 truncate font-semibold">Lead Administrator</p>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Content Area -->
+        <main class="flex-1 flex flex-col overflow-hidden">
+            <!-- Header bar -->
+            <header class="bg-white border-b border-slate-100 px-8 py-4 flex items-center justify-between flex-shrink-0 shadow-sm">
+                <div>
+                    <h1 class="text-xl font-bold text-slate-800">
+                        <span v-if="currentTab === 'dashboard'">Practice Operations Control</span>
+                        <span v-else-if="currentTab === 'clients'">Client Sessions & Financial Ledgers</span>
+                        <span v-else-if="currentTab === 'team'">Therapist & Coach Directory</span>
+                        <span v-else-if="currentTab === 'reminders'">Custom Reminders Workflow</span>
+                    </h1>
+                    <p class="text-xs text-slate-500 font-medium">Keep track of your physical therapy practice in real time.</p>
+                </div>
+
+                <div class="flex items-center gap-4">
+                    <!-- Quick action triggers -->
+                    <button @click="openNewClientModal = true" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 transition duration-150 shadow-md shadow-indigo-600/10 hover:shadow-indigo-600/20">
+                        <i class="fa-solid fa-plus text-xs"></i> Log New Session
+                    </button>
+                </div>
+            </header>
+
+            <!-- Main Inner Content Wrapper -->
+            <div class="flex-1 overflow-y-auto p-8 bg-slate-50">
+
+                <!-- ================== TAB: DASHBOARD ================== -->
+                <div v-if="currentTab === 'dashboard'" class="space-y-8 animate-fade-in">
+                    <!-- Stat Cards -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <!-- Stat Card: Collected Revenue -->
+                        <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition duration-200">
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Collected Revenue</span>
+                                <span class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center"><i class="fa-solid fa-circle-check text-lg"></i></span>
+                            </div>
+                            <div class="mt-4">
+                                <h3 class="text-2xl font-extrabold text-slate-900">KES {{ totalRevenue.toLocaleString() }}</h3>
+                                <p class="text-xs text-slate-500 mt-1 font-semibold flex items-center gap-1">
+                                    <i class="fa-solid fa-circle text-[8px] text-emerald-500"></i> From logged paid sessions
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- Stat Card: Outstanding Revenue -->
+                        <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition duration-200">
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Outstanding Debts</span>
+                                <span class="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center"><i class="fa-solid fa-triangle-exclamation text-lg"></i></span>
+                            </div>
+                            <div class="mt-4">
+                                <h3 class="text-2xl font-extrabold text-slate-900 text-rose-600">KES {{ outstandingRevenue.toLocaleString() }}</h3>
+                                <p class="text-xs text-slate-500 mt-1 font-semibold flex items-center gap-1">
+                                    <i class="fa-solid fa-circle text-[8px] text-rose-500 animate-pulse"></i> Needs follow-up reminders
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- Stat Card: Payment Efficiency -->
+                        <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition duration-200">
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Collection Rate</span>
+                                <span class="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center"><i class="fa-solid fa-percentage text-lg"></i></span>
+                            </div>
+                            <div class="mt-4">
+                                <h3 class="text-2xl font-extrabold text-slate-900">{{ collectionEfficiency }}%</h3>
+                                <div class="w-full bg-slate-100 h-1.5 rounded-full mt-2 overflow-hidden">
+                                    <div class="bg-indigo-600 h-full transition-all duration-500" :style="{ width: collectionEfficiency + '%' }"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Stat Card: Active Clients -->
+                        <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition duration-200">
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Active Clients</span>
+                                <span class="w-10 h-10 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center"><i class="fa-solid fa-users text-lg"></i></span>
+                            </div>
+                            <div class="mt-4">
+                                <h3 class="text-2xl font-extrabold text-slate-900">{{ clients.length }}</h3>
+                                <p class="text-xs text-slate-500 mt-1 font-semibold flex items-center gap-1">
+                                    <i class="fa-solid fa-circle text-[8px] text-sky-500"></i> Total clinic records logged
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Critical action alert: Immediate Payment Reminders Queue -->
+                    <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+                        <div class="flex items-center justify-between mb-6">
+                            <div>
+                                <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                                    <span class="inline-block w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping"></span>
+                                    Immediate Payment Reminders Queue
+                                </h3>
+                                <p class="text-xs text-slate-500 mt-1">These clients have finished sessions but have not cleared payments yet. Click "Send Reminder" to trigger dynamic follow-ups.</p>
+                            </div>
+                            <span class="bg-rose-50 text-rose-700 text-xs font-bold px-3 py-1.5 rounded-xl border border-rose-100">
+                                {{ unpaidClients.length }} Pending Invoices
+                            </span>
+                        </div>
+
+                        <div v-if="unpaidClients.length > 0" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div v-for="client in unpaidClients" :key="client.id" class="p-5 border border-slate-200 rounded-xl hover:border-slate-300 transition-all bg-slate-50/50 flex flex-col justify-between h-44 shadow-sm hover:shadow-md">
+                                <div class="flex justify-between items-start">
+                                    <div>
+                                        <p class="font-extrabold text-slate-950 text-base flex items-center gap-2">
+                                            {{ client.name }}
+                                            <span class="text-xs font-medium text-slate-500 bg-white border border-slate-200 px-2.5 py-0.5 rounded-full">{{ client.therapy }}</span>
+                                        </p>
+                                        <p class="text-xs text-slate-400 mt-1 font-medium"><i class="fa-regular fa-calendar-check mr-1"></i> Session: {{ formatDate(client.date) }}</p>
+                                    </div>
+                                    <span class="text-lg font-extrabold text-rose-600">KES {{ client.amount.toLocaleString() }}</span>
+                                </div>
+
+                                <div class="flex items-center gap-2 border-t border-slate-200/60 pt-4 mt-auto">
+                                    <button @click="markAsPaidDirectly(client.id)" class="flex-1 bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-200 hover:border-emerald-600 text-xs font-bold py-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5">
+                                        <i class="fa-solid fa-check"></i> Mark as Paid
+                                    </button>
+                                    <button @click="openQuickReminderModal(client)" class="flex-1 bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 shadow-md shadow-green-600/10">
+                                        <i class="fa-brands fa-whatsapp text-sm"></i> Send Reminder
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Empty state visual -->
+                        <div v-else class="py-12 flex flex-col items-center justify-center text-center">
+                            <div class="w-16 h-16 rounded-full bg-emerald-50 text-emerald-500 flex items-center justify-center text-2xl mb-4">
+                                <i class="fa-solid fa-circle-check"></i>
+                            </div>
+                            <h4 class="text-base font-bold text-slate-800">You are fully squared up!</h4>
+                            <p class="text-xs text-slate-500 mt-1 max-w-sm">Fantastic work Nimrod! All physical therapy records currently logged have cleared their balances.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ================== TAB: CLIENTS & BILLING ================== -->
+                <div v-if="currentTab === 'clients'" class="space-y-6 animate-fade-in">
+                    <!-- Filter and Search Header Control -->
+                    <div class="flex flex-col md:flex-row gap-4 items-center justify-between bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                        <!-- Filters -->
+                        <div class="flex items-center gap-2 w-full md:w-auto">
+                            <button @click="statusFilter = 'all'" :class="statusFilter === 'all' ? 'bg-indigo-600 text-white' : 'text-slate-600 bg-slate-100 hover:bg-slate-200'" class="px-4 py-2 rounded-xl text-xs font-bold transition">
+                                All Sessions ({{ clients.length }})
+                            </button>
+                            <button @click="statusFilter = 'Paid'" :class="statusFilter === 'Paid' ? 'bg-emerald-600 text-white' : 'text-slate-600 bg-slate-100 hover:bg-slate-200'" class="px-4 py-2 rounded-xl text-xs font-bold transition">
+                                Paid ({{ clients.filter(c => c.status === 'Paid').length }})
+                            </button>
+                            <button @click="statusFilter = 'Unpaid'" :class="statusFilter === 'Unpaid' ? 'bg-rose-600 text-white' : 'text-slate-600 bg-slate-100 hover:bg-slate-200'" class="px-4 py-2 rounded-xl text-xs font-bold transition">
+                                Unpaid ({{ clients.filter(c => c.status === 'Unpaid').length }})
+                            </button>
+                        </div>
+
+                        <!-- Search Bar -->
+                        <div class="relative w-full md:w-80">
+                            <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
+                            <input v-model="searchQuery" type="text" placeholder="Search by name, therapist or therapy..." class="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm">
+                        </div>
+                    </div>
+
+                    <!-- Main Records Table Grid -->
+                    <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="bg-slate-50 border-b border-slate-100 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                                        <th class="p-4 pl-6">Client Info</th>
+                                        <th class="p-4">Session & Therapist</th>
+                                        <th class="p-4">Billing Date</th>
+                                        <th class="p-4">Fee Charged</th>
+                                        <th class="p-4">Payment Status</th>
+                                        <th class="p-4 pr-6 text-right">Instant Control Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100 text-sm">
+                                    <tr v-for="client in filteredClients" :key="client.id" class="hover:bg-slate-50/50 transition duration-150">
+                                        <!-- Client Details -->
+                                        <td class="p-4 pl-6">
+                                            <div class="flex items-center gap-3">
+                                                <div class="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center font-bold text-slate-700 text-xs">
+                                                    {{ getInitials(client.name) }}
+                                                </div>
+                                                <div>
+                                                    <p class="font-extrabold text-slate-900 leading-snug">{{ client.name }}</p>
+                                                    <div class="flex items-center gap-2 mt-0.5 text-xs text-slate-400">
+                                                        <span><i class="fa-solid fa-phone text-[10px] mr-1"></i>{{ client.phone }}</span>
+                                                        <span v-if="client.email" class="inline-block w-1 h-1 bg-slate-300 rounded-full"></span>
+                                                        <span v-if="client.email"><i class="fa-regular fa-envelope text-[10px] mr-1"></i>{{ client.email }}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </td>
+
+                                        <!-- Session type / Therapist -->
+                                        <td class="p-4">
+                                            <p class="font-bold text-slate-800">{{ client.therapy }}</p>
+                                            <p class="text-xs text-slate-400 mt-0.5">Assigned: <span class="font-semibold text-indigo-500">{{ client.therapist || 'Not Assigned' }}</span></p>
+                                        </td>
+
+                                        <!-- Billing Date -->
+                                        <td class="p-4 text-slate-500 text-xs font-medium">
+                                            <i class="fa-regular fa-calendar mr-1"></i> {{ formatDate(client.date) }}
+                                        </td>
+
+                                        <!-- Cost / Amount -->
+                                        <td class="p-4 font-bold text-slate-900 text-sm">
+                                            KES {{ client.amount.toLocaleString() }}
+                                        </td>
+
+                                        <!-- Payment Status Badge -->
+                                        <td class="p-4">
+                                            <button @click="toggleStatus(client.id)" :class="client.status === 'Paid' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200 animate-pulse-slow'" class="px-3 py-1 rounded-full text-xs font-bold border transition duration-150 flex items-center gap-1.5 cursor-pointer hover:scale-105">
+                                                <span :class="client.status === 'Paid' ? 'bg-emerald-500' : 'bg-rose-500'" class="w-1.5 h-1.5 rounded-full inline-block"></span>
+                                                {{ client.status }}
+                                            </button>
+                                        </td>
+
+                                        <!-- Actions actions -->
+                                        <td class="p-4 pr-6">
+                                            <div class="flex items-center justify-end gap-2.5">
+                                                <button v-if="client.status === 'Unpaid'" @click="openQuickReminderModal(client)" class="p-2 bg-green-50 text-green-600 hover:bg-green-600 hover:text-white rounded-lg transition" title="Send Reminder">
+                                                    <i class="fa-brands fa-whatsapp text-base"></i>
+                                                </button>
+                                                <button @click="editClientSession(client)" class="p-2 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-lg transition" title="Edit Record">
+                                                    <i class="fa-regular fa-pen-to-square text-base"></i>
+                                                </button>
+                                                <button @click="deleteClientSession(client.id)" class="p-2 bg-slate-50 hover:bg-rose-100 text-rose-600 rounded-lg transition" title="Delete Record">
+                                                    <i class="fa-regular fa-trash-can text-base"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+
+                                    <tr v-if="filteredClients.length === 0">
+                                        <td colspan="6" class="py-16 text-center text-slate-400 italic">
+                                            <i class="fa-solid fa-folder-open text-3xl text-slate-200 mb-2 block"></i>
+                                            No sessions match your filter criteria or search.
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ================== TAB: TEAM MEMBERS ================== -->
+                <div v-if="currentTab === 'team'" class="space-y-6 animate-fade-in">
+                    <!-- Flex Grid of Therapists -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <!-- Add team member Card -->
+                        <div class="bg-white p-6 rounded-2xl border border-slate-200 border-dashed flex flex-col justify-center items-center text-center hover:border-indigo-400 transition cursor-pointer min-h-[250px]" @click="openNewTeamMemberModal = true">
+                            <div class="w-14 h-14 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center text-2xl mb-4 shadow-sm shadow-indigo-100">
+                                <i class="fa-solid fa-user-plus"></i>
+                            </div>
+                            <h4 class="font-bold text-slate-800 text-base">Invite Team Member</h4>
+                            <p class="text-xs text-slate-500 mt-1 max-w-[200px]">Add more physiotherapists or staff members to track their session counts.</p>
+                        </div>
+
+                        <!-- Dynamic Team Member Cards -->
+                        <div v-for="member in team" :key="member.id" class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between hover:shadow-md transition">
+                            <div class="flex items-start justify-between">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-12 h-12 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center font-bold text-indigo-600 text-base shadow-inner">
+                                        {{ getInitials(member.name) }}
+                                    </div>
+                                    <div>
+                                        <h4 class="font-extrabold text-slate-900">{{ member.name }}</h4>
+                                        <p class="text-xs font-semibold text-indigo-500 mt-0.5">{{ member.role }}</p>
+                                    </div>
+                                </div>
+                                <button v-if="member.name !== 'Nimrod Kiprotich'" @click="removeTeamMember(member.id)" class="text-slate-300 hover:text-rose-600 p-1 rounded-lg transition">
+                                    <i class="fa-regular fa-trash-can"></i>
+                                </button>
+                            </div>
+
+                            <div class="border-t border-slate-100 pt-4 mt-6">
+                                <div class="flex items-center justify-between text-xs text-slate-500">
+                                    <span>Workload Logged</span>
+                                    <span class="font-bold text-slate-800">{{ getTherapistSessionsCount(member.name) }} Sessions</span>
+                                </div>
+                                <div class="flex items-center justify-between text-xs text-slate-500 mt-2">
+                                    <span>Commissions Tracked</span>
+                                    <span class="font-bold text-slate-900">KES {{ getTherapistRevenueCalculated(member.name).toLocaleString() }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ================== TAB: REMINDERS DESK ================== -->
+                <div v-if="currentTab === 'reminders'" class="space-y-6 animate-fade-in">
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <!-- Template Settings -->
+                        <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm lg:col-span-2 space-y-4">
+                            <h3 class="text-lg font-bold text-slate-800">Customize WhatsApp Template</h3>
+                            <p class="text-xs text-slate-500">Tailor the messaging sent directly to unpaid physical therapy clients. Use placeholders that automatically fill from your records.</p>
+                            
+                            <div class="space-y-3">
+                                <div class="flex flex-wrap gap-1.5">
+                                    <span class="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-1 rounded cursor-pointer hover:bg-indigo-50 hover:text-indigo-600" @click="addTemplateTag('{NAME}')">{NAME}</span>
+                                    <span class="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-1 rounded cursor-pointer hover:bg-indigo-50 hover:text-indigo-600" @click="addTemplateTag('{THERAPY}')">{THERAPY}</span>
+                                    <span class="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-1 rounded cursor-pointer hover:bg-indigo-50 hover:text-indigo-600" @click="addTemplateTag('{AMOUNT}')">{AMOUNT}</span>
+                                    <span class="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-1 rounded cursor-pointer hover:bg-indigo-50 hover:text-indigo-600" @click="addTemplateTag('{DATE}')">{DATE}</span>
+                                    <span class="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-1 rounded cursor-pointer hover:bg-indigo-50 hover:text-indigo-600" @click="addTemplateTag('{CLINIC}')">{CLINIC}</span>
+                                </div>
+
+                                <textarea v-model="reminderTemplate" rows="6" class="w-full border border-slate-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-medium text-slate-700"></textarea>
+                                
+                                <div class="flex justify-end">
+                                    <button @click="saveReminderSettings" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs px-4 py-2.5 rounded-xl transition shadow-md">
+                                        Save Template
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Template live preview -->
+                        <div class="bg-slate-900 text-white p-6 rounded-2xl flex flex-col justify-between relative shadow-xl overflow-hidden min-h-[300px]">
+                            <!-- Subtle design layout accents -->
+                            <div class="absolute -top-12 -right-12 w-32 h-32 bg-indigo-500/10 rounded-full blur-xl"></div>
+                            
+                            <div>
+                                <h4 class="text-xs font-bold text-indigo-400 uppercase tracking-widest flex items-center gap-1.5">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-indigo-400 inline-block animate-pulse"></span>
+                                    Live WhatsApp Preview
+                                </h4>
+                                <div class="mt-4 p-4 rounded-xl bg-slate-950/50 border border-slate-800 text-sm leading-relaxed max-h-[180px] overflow-y-auto whitespace-pre-wrap font-mono text-[11px] text-slate-300">
+                                    {{ getLiveTemplatePreview() }}
+                                </div>
+                            </div>
+
+                            <p class="text-[10px] text-slate-500 italic mt-4 font-semibold">
+                                * Standard templates are built to instantly launch WhatsApp Web or Mobile and paste into conversations automatically.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+
+        <!-- ================== MODAL: LOG NEW SESSION / EDIT CLIENT ================== -->
+        <div v-if="openNewClientModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+            <div class="bg-white rounded-3xl max-w-lg w-full p-8 shadow-2xl border border-slate-100 flex flex-col gap-6 animate-scale-up">
+                <div class="flex justify-between items-center">
+                    <h3 class="text-xl font-extrabold text-slate-950">
+                        {{ editingMode ? 'Edit Session Record' : 'Log New Session & Bill' }}
+                    </h3>
+                    <button @click="closeSessionModal" class="p-1 rounded-lg hover:bg-slate-100 transition text-slate-400">
+                        <i class="fa-solid fa-xmark text-lg"></i>
+                    </button>
+                </div>
+
+                <form @submit.prevent="submitClientSessionForm" class="space-y-4">
+                    <!-- Client Name -->
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Client Full Name *</label>
+                        <input v-model="formClient.name" type="text" placeholder="John Doe" required class="w-full border border-slate-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Phone -->
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Phone Number *</label>
+                            <input v-model="formClient.phone" type="text" placeholder="e.g. 0712345678" required class="w-full border border-slate-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
+                        </div>
+                        <!-- Email -->
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Email Address</label>
+                            <input v-model="formClient.email" type="email" placeholder="client@gmail.com" class="w-full border border-slate-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
+                        </div>
+                    </div>
+
+                    <!-- Therapy Type -->
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Therapy Session Type *</label>
+                        <input v-model="formClient.therapy" type="text" placeholder="e.g. Post-Op Back Rehab, Sports Injury Massage" required class="w-full border border-slate-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Fee -->
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Fee Amount (KES) *</label>
+                            <input v-model.number="formClient.amount" type="number" placeholder="5000" required class="w-full border border-slate-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
+                        </div>
+                        <!-- Date -->
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Session Date *</label>
+                            <input v-model="formClient.date" type="date" required class="w-full border border-slate-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Assigned Therapist -->
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Assigned Coach/Therapist</label>
+                            <select v-model="formClient.therapist" class="w-full border border-slate-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm bg-white">
+                                <option value="">No therapist assigned</option>
+                                <option v-for="member in team" :key="member.id" :value="member.name">{{ member.name }}</option>
+                            </select>
+                        </div>
+                        <!-- Initial Status -->
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Initial Payment Status</label>
+                            <select v-model="formClient.status" class="w-full border border-slate-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm bg-white">
+                                <option value="Unpaid">Unpaid</option>
+                                <option value="Paid">Paid</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="pt-4 flex items-center justify-end gap-3 border-t border-slate-100">
+                        <button type="button" @click="closeSessionModal" class="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-500 text-sm font-semibold hover:bg-slate-50 transition">
+                            Cancel
+                        </button>
+                        <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm px-5 py-2.5 rounded-xl shadow-md transition">
+                            {{ editingMode ? 'Save Changes' : 'Log & Generate Invoice' }}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- ================== MODAL: ADD TEAM MEMBER ================== -->
+        <div v-if="openNewTeamMemberModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+            <div class="bg-white rounded-3xl max-w-sm w-full p-8 shadow-2xl border border-slate-100 flex flex-col gap-6">
+                <div class="flex justify-between items-center">
+                    <h3 class="text-lg font-bold text-slate-900">Add Team Member</h3>
+                    <button @click="openNewTeamMemberModal = false" class="p-1 rounded-lg hover:bg-slate-100 transition text-slate-400">
+                        <i class="fa-solid fa-xmark text-lg"></i>
+                    </button>
+                </div>
+
+                <form @submit.prevent="addTeamMember" class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Full Name *</label>
+                        <input v-model="newTeamMemberName" type="text" placeholder="Dr. Jane Doe" required class="w-full border border-slate-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Clinic Role *</label>
+                        <input v-model="newTeamMemberRole" type="text" placeholder="Physical Therapist / Coach" required class="w-full border border-slate-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
+                    </div>
+
+                    <div class="pt-4 flex items-center justify-end gap-3 border-t border-slate-100">
+                        <button type="button" @click="openNewTeamMemberModal = false" class="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-500 text-sm font-semibold hover:bg-slate-50 transition">
+                            Cancel
+                        </button>
+                        <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm px-5 py-2.5 rounded-xl shadow-md transition">
+                            Add Member
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- ================== MODAL: PREVIEW & CUSTOMIZE REMINDER MESSAGE ================== -->
+        <div v-if="openReminderModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+            <div class="bg-white rounded-3xl max-w-lg w-full p-8 shadow-2xl border border-slate-100 flex flex-col gap-6">
+                <div class="flex justify-between items-center">
+                    <h3 class="text-xl font-bold text-slate-900">Send Payment Reminder</h3>
+                    <button @click="openReminderModal = false" class="p-1 rounded-lg hover:bg-slate-100 transition text-slate-400">
+                        <i class="fa-solid fa-xmark text-lg"></i>
+                    </button>
+                </div>
+
+                <div class="space-y-4">
+                    <div>
+                        <p class="text-xs text-slate-500 font-medium">Verify or adjust the message before launching WhatsApp to send to <strong class="text-slate-800">{{ currentReminderClient.name }}</strong>.</p>
+                    </div>
+
+                    <!-- Editable Message Text Box -->
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Reminder Message Content</label>
+                        <textarea v-model="currentReminderMessage" rows="6" class="w-full border border-slate-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-medium text-slate-700"></textarea>
+                    </div>
+
+                    <div class="p-3 bg-emerald-50 rounded-xl border border-emerald-100 flex items-start gap-3">
+                        <i class="fa-brands fa-whatsapp text-emerald-600 text-xl mt-0.5"></i>
+                        <div>
+                            <h4 class="text-xs font-bold text-emerald-800">Ready to Dispatch</h4>
+                            <p class="text-[11px] text-emerald-700 mt-0.5">Clicking "Send via WhatsApp" opens WhatsApp with this custom pre-filled message ready to be sent to <strong class="font-bold">{{ currentReminderClient.phone }}</strong>.</p>
+                        </div>
+                    </div>
+
+                    <div class="pt-4 flex items-center justify-end gap-3 border-t border-slate-100">
+                        <button @click="openReminderModal = false" class="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-500 text-sm font-semibold hover:bg-slate-50 transition">
+                            Cancel
+                        </button>
+                        <button @click="triggerWhatsAppMessage" class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm px-5 py-2.5 rounded-xl shadow-md transition flex items-center gap-2">
+                            <i class="fa-brands fa-whatsapp text-base"></i> Send via WhatsApp
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+
+        createApp({
+            data() {
+                return {
+                    currentTab: 'dashboard',
+                    searchQuery: '',
+                    statusFilter: 'all',
+
+                    // Active Modal triggers
+                    openNewClientModal: false,
+                    openNewTeamMemberModal: false,
+                    openReminderModal: false,
+
+                    // Editing flags
+                    editingMode: false,
+                    editingId: null,
+
+                    // Toast Notifications state
+                    toasts: [],
+
+                    // Reminder Customization variables
+                    reminderTemplate: `Hello {NAME},\n\nThis is Nimrod Kiprotich. Hope you are recovering well from your physical therapy sessions!\n\nThis is a gentle payment reminder for your recent session ({THERAPY}) on {DATE}. The due balance is KES {AMOUNT}.\n\nPlease let us know if you have any questions or can submit payment soon. Thank you!`,
+                    
+                    // Specific reminder state
+                    currentReminderClient: null,
+                    currentReminderMessage: '',
+
+                    // Core data states (with Fallbacks)
+                    clients: [],
+                    team: [],
+
+                    // Temporary modal models
+                    formClient: {
+                        name: '',
+                        phone: '',
+                        email: '',
+                        therapy: '',
+                        amount: '',
+                        date: '',
+                        therapist: '',
+                        status: 'Unpaid'
+                    },
+
+                    newTeamMemberName: '',
+                    newTeamMemberRole: ''
+                };
+            },
+
+            created() {
+                // Initialize database schema/state inside LocalStorage for persistent sessions
+                const savedClients = localStorage.getItem('nimrod_pt_clients_records');
+                const savedTeam = localStorage.getItem('nimrod_pt_team_records');
+                const savedTemplate = localStorage.getItem('nimrod_pt_reminder_template');
+
+                if (savedClients) {
+                    this.clients = JSON.parse(savedClients);
+                } else {
+                    // Seed initial high priority mock dataset for Nimrod's clinic
+                    this.clients = [
+                        { id: 1, name: 'Dennis Kimetto', phone: '0711122233', email: 'kimetto.d@gmail.com', therapy: 'Acupuncture & Back Therapy', amount: 4500, date: '2026-07-01', therapist: 'Nimrod Kiprotich', status: 'Paid' },
+                        { id: 2, name: 'Hellen Obiri', phone: '0722333444', email: 'obiri@athletics.org', therapy: 'Knee Post-Op Rehabilitation', amount: 6000, date: '2026-07-04', therapist: 'Jane M.', status: 'Unpaid' },
+                        { id: 3, name: 'Eliud Kipchoge', phone: '0733444555', email: 'eliud.kip@fastmail.com', therapy: 'Deep Tissue Sports Injury Therapy', amount: 7500, date: '2026-07-05', therapist: 'Nimrod Kiprotich', status: 'Unpaid' },
+                        { id: 4, name: 'Beatrice Chepkoech', phone: '0744555666', email: 'beatrice.c@outlook.com', therapy: 'Shoulder Impingement Therapy', amount: 5000, date: '2026-07-05', therapist: 'Jane M.', status: 'Paid' }
+                    ];
+                    this.saveToStorage('clients');
+                }
+
+                if (savedTeam) {
+                    this.team = JSON.parse(savedTeam);
+                } else {
+                    // Seed initial clinic staff
+                    this.team = [
+                        { id: 1, name: 'Nimrod Kiprotich', role: 'Lead Athletic Coach & Physio' },
+                        { id: 2, name: 'Jane M.', role: 'Post-Op Rehabilitation Specialist' }
+                    ];
+                    this.saveToStorage('team');
+                }
+
+                if (savedTemplate) {
+                    this.reminderTemplate = savedTemplate;
+                }
+
+                // Reset standard form date to today's date
+                this.resetForm();
+            },
+
+            computed: {
+                totalRevenue() {
+                    return this.clients
+                        .filter(c => c.status === 'Paid')
+                        .reduce((total, client) => total + client.amount, 0);
+                },
+
+                outstandingRevenue() {
+                    return this.clients
+                        .filter(c => c.status === 'Unpaid')
+                        .reduce((total, client) => total + client.amount, 0);
+                },
+
+                collectionEfficiency() {
+                    const totalBilled = this.totalRevenue + this.outstandingRevenue;
+                    if (totalBilled === 0) return 0;
+                    return Math.round((this.totalRevenue / totalBilled) * 100);
+                },
+
+                unpaidClients() {
+                    return this.clients.filter(c => c.status === 'Unpaid');
+                },
+
+                filteredClients() {
+                    let search = this.searchQuery.toLowerCase().trim();
+                    let list = this.clients;
+
+                    // Apply payment filter
+                    if (this.statusFilter !== 'all') {
+                        list = list.filter(c => c.status === this.statusFilter);
+                    }
+
+                    // Apply Search Bar matching
+                    if (search !== '') {
+                        list = list.filter(c => {
+                            return c.name.toLowerCase().includes(search) || 
+                                   c.therapy.toLowerCase().includes(search) ||
+                                   (c.therapist && c.therapist.toLowerCase().includes(search));
+                        });
+                    }
+
+                    // Sort newest logged first
+                    return list.sort((a, b) => new Date(b.date) - new Date(a.date));
+                }
+            },
+
+            methods: {
+                // Local Storage sync helpers
+                saveToStorage(type) {
+                    if (type === 'clients') {
+                        localStorage.setItem('nimrod_pt_clients_records', JSON.stringify(this.clients));
+                    } else if (type === 'team') {
+                        localStorage.setItem('nimrod_pt_team_records', JSON.stringify(this.team));
+                    }
+                },
+
+                // Clean initials generator for avatars
+                getInitials(name) {
+                    if (!name) return 'PT';
+                    const parts = name.split(' ');
+                    return parts.map(p => p[0]).slice(0, 2).join('').toUpperCase();
+                },
+
+                // Clean visual date formatter
+                formatDate(dateString) {
+                    if (!dateString) return '';
+                    const dateObj = new Date(dateString);
+                    return dateObj.toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric'
+                    });
+                },
+
+                // Reset standard New Session form fields
+                resetForm() {
+                    this.formClient = {
+                        name: '',
+                        phone: '',
+                        email: '',
+                        therapy: '',
+                        amount: '',
+                        date: new Date().toISOString().split('T')[0], // Defaults to Today's date
+                        therapist: '',
+                        status: 'Unpaid'
+                    };
+                    this.editingMode = false;
+                    this.editingId = null;
+                },
+
+                closeSessionModal() {
+                    this.openNewClientModal = false;
+                    this.resetForm();
+                },
+
+                // Log a new session or Edit existing one
+                submitClientSessionForm() {
+                    if (this.editingMode && this.editingId) {
+                        // Update existing log
+                        const index = this.clients.findIndex(c => c.id === this.editingId);
+                        if (index !== -1) {
+                            this.clients[index] = {
+                                ...this.clients[index],
+                                name: this.formClient.name,
+                                phone: this.formClient.phone,
+                                email: this.formClient.email,
+                                therapy: this.formClient.therapy,
+                                amount: this.formClient.amount,
+                                date: this.formClient.date,
+                                therapist: this.formClient.therapist,
+                                status: this.formClient.status
+                            };
+                            this.showToast('Session record successfully updated!', 'success');
+                        }
+                    } else {
+                        // Add brand new session record
+                        const newId = Date.now();
+                        this.clients.push({
+                            id: newId,
+                            name: this.formClient.name,
+                            phone: this.formClient.phone,
+                            email: this.formClient.email,
+                            therapy: this.formClient.therapy,
+                            amount: this.formClient.amount,
+                            date: this.formClient.date,
+                            therapist: this.formClient.therapist,
+                            status: this.formClient.status
+                        });
+                        this.showToast('New session billed and recorded!', 'success');
+                    }
+
+                    this.saveToStorage('clients');
+                    this.closeSessionModal();
+                },
+
+                // Quick toggle status directly on table row click
+                toggleStatus(id) {
+                    const client = this.clients.find(c => c.id === id);
+                    if (client) {
+                        client.status = client.status === 'Paid' ? 'Unpaid' : 'Paid';
+                        this.saveToStorage('clients');
+                        this.showToast(`Status updated to: ${client.status}`, 'success');
+                    }
+                },
+
+                // Quick mark paid straight from the dashboard's Urgent reminders lists
+                markAsPaidDirectly(id) {
+                    const client = this.clients.find(c => c.id === id);
+                    if (client) {
+                        client.status = 'Paid';
+                        this.saveToStorage('clients');
+                        this.showToast(`Amazing! Payment collected from ${client.name}`, 'success');
+                    }
+                },
+
+                // Trigger edit modal populated with existing record state
+                editClientSession(client) {
+                    this.editingMode = true;
+                    this.editingId = client.id;
+                    this.formClient = { ...client };
+                    this.openNewClientModal = true;
+                },
+
+                // Safely remove/delete session logs
+                deleteClientSession(id) {
+                    const confirmed = window.confirm('Are you absolutely sure you want to delete this session record? This action cannot be undone.');
+                    if (confirmed) {
+                        this.clients = this.clients.filter(c => c.id !== id);
+                        this.saveToStorage('clients');
+                        this.showToast('Session record deleted successfully.', 'success');
+                    }
+                },
+
+                // Team methods
+                addTeamMember() {
+                    if (!this.newTeamMemberName.trim() || !this.newTeamMemberRole.trim()) return;
+
+                    const newMember = {
+                        id: Date.now(),
+                        name: this.newTeamMemberName,
+                        role: this.newTeamMemberRole
+                    };
+
+                    this.team.push(newMember);
+                    this.saveToStorage('team');
+                    
+                    this.newTeamMemberName = '';
+                    this.newTeamMemberRole = '';
+                    this.openNewTeamMemberModal = false;
+                    this.showToast('New team member joined clinic!', 'success');
+                },
+
+                removeTeamMember(id) {
+                    const confirmed = window.confirm('Remove this therapist from active roster?');
+                    if (confirmed) {
+                        this.team = this.team.filter(t => t.id !== id);
+                        this.saveToStorage('team');
+                        this.showToast('Therapist removed.', 'success');
+                    }
+                },
+
+                getTherapistSessionsCount(therapistName) {
+                    return this.clients.filter(c => c.therapist === therapistName).length;
+                },
+
+                getTherapistRevenueCalculated(therapistName) {
+                    // Quick simulation: Calculate 60% standard Physio Commission for the sessions done
+                    const totalValue = this.clients
+                        .filter(c => c.therapist === therapistName && c.status === 'Paid')
+                        .reduce((total, client) => total + client.amount, 0);
+                    return totalValue;
+                },
+
+                // Dynamic Message Template Helper
+                generateCustomReminderMessage(client) {
+                    let msg = this.reminderTemplate;
+                    msg = msg.replace(/{NAME}/g, client.name);
+                    msg = msg.replace(/{THERAPY}/g, client.therapy);
+                    msg = msg.replace(/{AMOUNT}/g, client.amount.toLocaleString());
+                    msg = msg.replace(/{DATE}/g, this.formatDate(client.date));
+                    msg = msg.replace(/{CLINIC}/g, "Nimrod PT");
+                    return msg;
+                },
+
+                // Live placeholder text compiler
+                getLiveTemplatePreview() {
+                    // Compile template as if sent to Eliud Kipchoge for beautiful visual representation
+                    const mock = {
+                        name: 'Eliud Kipchoge',
+                        therapy: 'Sports Injury Therapy',
+                        amount: 7500,
+                        date: '2026-07-05'
+                    };
+                    return this.generateCustomReminderMessage(mock);
+                },
+
+                // Append tags directly to text editor
+                addTemplateTag(tag) {
+                    this.reminderTemplate += ` ${tag}`;
+                },
+
+                // Save custom message layouts permanently to LocalStorage
+                saveReminderSettings() {
+                    localStorage.setItem('nimrod_pt_reminder_template', this.reminderTemplate);
+                    this.showToast('WhatsApp reminder template saved successfully!', 'success');
+                },
+
+                // Opens pre-send screen to view dynamic copy details before hitting Web WA API
+                openQuickReminderModal(client) {
+                    this.currentReminderClient = client;
+                    this.currentReminderMessage = this.generateCustomReminderMessage(client);
+                    this.openReminderModal = true;
+                },
+
+                // Launching actual action to trigger phone redirect
+                triggerWhatsAppMessage() {
+                    if (!this.currentReminderClient) return;
+
+                    let phoneNumber = this.currentReminderClient.phone.trim();
+                    
+                    // Convert local Kenyan 07xx numbers to standard country code format (254...)
+                    if (phoneNumber.startsWith('0')) {
+                        phoneNumber = '254' + phoneNumber.slice(1);
+                    } else if (phoneNumber.startsWith('+')) {
+                        phoneNumber = phoneNumber.replace('+', '');
+                    }
+
+                    // Format URL & open safe blank window tab redirection
+                    const waUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(this.currentReminderMessage)}`;
+                    window.open(waUrl, '_blank');
+                    this.openReminderModal = false;
+                    this.showToast(`Reminder sent to ${this.currentReminderClient.name}!`, 'success');
+                },
+
+                // Simple custom in-app Toast alerts logic
+                showToast(message, type = 'success') {
+                    const id = Date.now();
+                    this.toasts.push({ id, message, type });
+                    
+                    // Auto dismiss after 4 seconds
+                    setTimeout(() => {
+                        this.dismissToast(id);
+                    }, 4000);
+                },
+
+                dismissToast(id) {
+                    this.toasts = this.toasts.filter(t => t.id !== id);
+                }
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
